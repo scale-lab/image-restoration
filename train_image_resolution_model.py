@@ -15,10 +15,10 @@ def main(model_name, downgrade, scale, batch_size=16, depth=16):
 
     if model_name == 'edsr':
         trainer = EdsrTrainer(model=edsr(scale=scale, num_res_blocks=depth), 
-                            checkpoint_dir=f'.ckpt/edsr-{depth}-x{scale}')
+                            checkpoint_dir=f'.ckpt/edsr-{depth}-{downgrade}-x{scale}')
     elif model_name == 'wdsr':
         trainer = WdsrTrainer(model=wdsr_b(scale=scale, num_res_blocks=depth), 
-                            checkpoint_dir=f'.ckpt/edsr-{depth}-x{scale}')
+                            checkpoint_dir=f'.ckpt/edsr-{depth}-{downgrade}-x{scale}')
     else:
         NotImplementedError(f"Model {model_name} not implemented")
 
@@ -40,7 +40,7 @@ def main(model_name, downgrade, scale, batch_size=16, depth=16):
 
     # Save weights to separate location.
     print("Save weights to separate location")
-    trainer.model.save_weights(f'weights/{model_name}-{depth}-x{scale}/weights.h5')   
+    trainer.model.save_weights(f'weights/{model_name}-{depth}-{downgrade}-x{scale}/weights.h5')   
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train Image Restoration Model.')

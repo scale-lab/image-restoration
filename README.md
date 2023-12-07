@@ -73,7 +73,7 @@ To run training use:
 ```
 python train_image_resolution_model.py --scale 2
                                        --downgrade bicubic 
-                                       --model wdsr
+                                       --model edsr
                                        --batch-size 16
                                        --depth 16
 ```
@@ -84,3 +84,14 @@ python train_image_resolution_model.py --scale 2
 - `batch-size`: Training batch size, default `16`
 
 The result model is stored under `weight/` directory.
+
+| Model | Distortion | Downscaling Factor |  PSNR  | Precision |
+|:-----:|:----------:|:------------------:|:------:|:---------:|
+|  EDSR |   Bicubic  |          2         |        |    FP32   |
+|  EDSR |   Bicubic  |          4         |  28.81 |    FP32   |
+|  EDSR |   Bicubic  |          8         |        |    FP32   |
+|  EDSR |    Mild    |          4         |        |    FP32   |
+|  EDSR |  Difficult |          4         |        |    FP32   |
+|  EDSR |   Unknown  |          2         |        |    FP32   |
+|  EDSR |   Bicubic  |          4         |        |    FP32   |
+|  EDSR |    All     |         All        |        |    FP32   |
