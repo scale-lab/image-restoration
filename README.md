@@ -87,11 +87,10 @@ The result model is stored under `weight/` directory.
 
 | Model | Distortion | Downscaling Factor |  PSNR  | Precision |
 |:-----:|:----------:|:------------------:|:------:|:---------:|
-|  EDSR |   Bicubic  |          2         |        |    FP32   |
-|  EDSR |   Bicubic  |          4         |  28.81 |    FP32   |
+|  EDSR |   Bicubic  |          2         |  31.53 |    FP32   |
+|  EDSR |   Bicubic  |          4         |  26.98 |    FP32   |
 |  EDSR |   Bicubic  |          8         |        |    FP32   |
-|  EDSR |    Mild    |          4         |        |    FP32   |
-|  EDSR |  Difficult |          4         |        |    FP32   |
-|  EDSR |   Unknown  |          2         |        |    FP32   |
-|  EDSR |   Bicubic  |          4         |        |    FP32   |
+|  EDSR |    Mild    |          4         |  18.77 |    FP32   |
+|  EDSR |  Difficult |          4         |  19.18 |    FP32   |
+|  EDSR |   Unknown  |          2         |  22.85 |    FP32   |
 |  EDSR |    All     |         All        |        |    FP32   |
