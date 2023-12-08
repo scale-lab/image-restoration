@@ -1,12 +1,18 @@
-import os
 from data import DIV2K
 from model.edsr import edsr
 from model.wdsr import wdsr_b
-from train import EdsrTrainer, WdsrTrainer
 import argparse
 import tensorflow.compat.v1 as tf
+import datetime
 
-def main(model_name, downgrade, scale, batch_size=16, depth=16):
+# https://keras.io/examples/vision/edsr/
+def PSNR(super_resolution, high_resolution):
+    """Compute the peak signal-to-noise ratio, measures quality of image."""
+    # Max value of pixel is 255
+    psnr_value = tf.image.psnr(high_resolution, super_resolution, max_val=255)[0]
+    return psnr_value
+
+def main(model_name, downgrade, scale, batch_size=16, epochs=100, depth=16):
     div2k_train = DIV2K(scale=scale, subset='train', downgrade=downgrade)
     div2k_valid = DIV2K(scale=scale, subset='valid', downgrade=downgrade)
 
@@ -14,33 +20,44 @@ def main(model_name, downgrade, scale, batch_size=16, depth=16):
     valid_ds = div2k_valid.dataset(batch_size=1, random_transform=False, repeat_count=1)
 
     if model_name == 'edsr':
-        trainer = EdsrTrainer(model=edsr(scale=scale, num_res_blocks=depth), 
-                            checkpoint_dir=f'.ckpt/edsr-{depth}-{downgrade}-x{scale}')
+        model = edsr(scale=scale, num_res_blocks=depth)
     elif model_name == 'wdsr':
-        trainer = WdsrTrainer(model=wdsr_b(scale=scale, num_res_blocks=depth), 
-                            checkpoint_dir=f'.ckpt/edsr-{depth}-{downgrade}-x{scale}')
+        model = wdsr_b(scale=scale, num_res_blocks=depth)
     else:
         NotImplementedError(f"Model {model_name} not implemented")
 
-    # Train the model for 300,000 steps and evaluate model
-    # every 1000 steps on the first 10 images of the DIV2K
-    # validation set. Save a checkpoint only if evaluation
-    # PSNR has improved.
-    print(f"Train {model_name} model for 300,000 steps and evaluate model")
-    trainer.train(train_ds,
-                valid_ds.take(10),
-                steps=300000, 
-                evaluate_every=1000, 
-                save_best_only=True)
+    loss_object = tf.keras.losses.MeanAbsoluteError()
 
-    # Evaluate model on full validation set
-    print("Evaluate model on full validation set")
-    psnrv = trainer.evaluate(valid_ds)
-    print(f'PSNR = {psnrv.numpy():3f}')
+    lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(
+                                boundaries=[200000], values=[1e-4, 5e-5])
 
-    # Save weights to separate location.
-    print("Save weights to separate location")
-    trainer.model.save_weights(f'weights/{model_name}-{depth}-{downgrade}-x{scale}/weights.h5')   
+    optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
+
+    model.compile(loss=loss_object,
+              optimizer=optimizer, 
+              metrics=['MAE', PSNR])
+
+    log_dir = "logs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
+    model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+        filepath=log_dir + '/checkpoints/',
+        monitor='MAE',
+        mode='min')
+    
+    model.fit(train_ds,
+            epochs=epochs,
+            steps_per_epoch=800 // batch_size,
+            validation_data=valid_ds,
+            validation_steps=100 // batch_size,
+            callbacks=[tensorboard_callback,
+                        model_checkpoint_callback])
+    
+
+    print("Evaluating model...")
+    model.evaluate(valid_ds)
+
+    print("Saving model...")
+    model.save_weights(f'weights/{model_name}-{depth}-{downgrade}-x{scale}/weights.h5')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train Image Restoration Model.')
@@ -52,6 +69,8 @@ if __name__ == '__main__':
                         help='Number of residual blocks')
     parser.add_argument('--batch-size', type=int, default=16,
                         help='Batch Size for training')
+    parser.add_argument('--epochs', type=int, default=100,
+                        help='Number of epochs to train for')
     parser.add_argument('--model', type=str, default='edsr',
                         help='Model name, can be edsr or wdsr')
     args = parser.parse_args()
@@ -63,4 +82,5 @@ if __name__ == '__main__':
          downgrade=args.downgrade, 
          scale=args.scale,
          batch_size=args.batch_size,
+         epochs=args.epochs,
          depth=args.depth)
