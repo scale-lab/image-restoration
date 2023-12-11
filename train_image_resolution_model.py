@@ -57,7 +57,7 @@ def main(model_name, downgrade, scale, batch_size=16, epochs=100, depth=16):
     model.evaluate(valid_ds)
 
     print("Saving model...")
-    model.save_weights(f'weights/{model_name}-{depth}-{downgrade}-x{scale}/weights.h5')
+    model.save(f'weights/{model_name}-{depth}-{downgrade}-x{scale}/weights.h5', save_format='h5')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train Image Restoration Model.')
