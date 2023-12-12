@@ -14,12 +14,16 @@ def edsr(scale, num_filters=64, num_res_blocks=8, res_block_scaling=None):
     b = Conv2D(num_filters, 3, padding='same')(b)
     x = Add()([x, b])
 
+    x = decoder(x, scale, num_filters)
+    return Model(x_in, x, name="edsr")
+
+def decoder(x, scale, num_filters):
+    print(f"decoder: scale={scale}")
     x = upsample(x, scale, num_filters)
     x = Conv2D(3, 3, padding='same')(x)
 
     x = Lambda(denormalize)(x)
-    return Model(x_in, x, name="edsr")
-
+    return x
 
 def res_block(x_in, filters, scaling):
     x = Conv2D(filters, 3, padding='same', activation='relu')(x_in)
@@ -40,7 +44,7 @@ def upsample(x, scale, num_filters):
     elif scale == 3:
         x = upsample_1(x, 3, name='conv2d_1_scale_3')
     elif scale == 4:
-        x = upsample_1(x, 2, name='conv2d_1_scale_2')
-        x = upsample_1(x, 2, name='conv2d_2_scale_2')
+        x = upsample_1(x, 2, name='conv2d_1_scale_4')
+        x = upsample_1(x, 2, name='conv2d_2_scale_4')
 
     return x

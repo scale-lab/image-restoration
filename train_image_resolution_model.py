@@ -12,17 +12,25 @@ def PSNR(super_resolution, high_resolution):
     psnr_value = tf.image.psnr(high_resolution, super_resolution, max_val=255)[0]
     return psnr_value
 
-def main(model_name, downgrade, scale, downgrade_for_validation, scale_for_validation, batch_size=16, epochs=100, depth=16):
+def main(model_name, downgrade, scale, downgrade_for_validation,
+         scale_for_validation, batch_size=16, epochs=100, depth=16,
+         eval_all_distortions=False):
     #treat downgrade=  downgrade_for_training
     downgrade_for_training = downgrade
     scale_for_training = scale
 
     div2k_train = DIV2K(scale=scale_for_training, subset='train', downgrade=downgrade_for_training)
-    div2k_valid = DIV2K(scale=scale_for_validation, subset='valid', downgrade=downgrade_for_validation)
-
     train_ds = div2k_train.dataset(batch_size=batch_size, random_transform=True)
-    valid_ds = div2k_valid.dataset(batch_size=1, random_transform=False, repeat_count=1)
 
+    if eval_all_distortions:
+        div2k_valid = {distortion: DIV2K(scale=scale_for_validation, subset='valid', downgrade=distortion) 
+                                    for distortion in ['bicubic', 'unknown', 'mild', 'difficult']}
+    else:
+        div2k_valid = {downgrade_for_validation: DIV2K(scale=scale_for_validation, subset='valid', downgrade=downgrade_for_validation)}
+
+    valid_ds = {distortion: div2k_valid[distortion].dataset(batch_size=1, random_transform=False, repeat_count=1)
+                                    for distortion in div2k_valid}
+        
     if model_name == 'edsr':
         model = edsr(scale=scale, num_res_blocks=depth)
     elif model_name == 'wdsr':
@@ -47,18 +55,20 @@ def main(model_name, downgrade, scale, downgrade_for_validation, scale_for_valid
         filepath=log_dir + '/checkpoints/',
         monitor='MAE',
         mode='min')
-    
+
+    print(f"Training model on {downgrade} data with scale {scale_for_training} ...")
     model.fit(train_ds,
             epochs=epochs,
             steps_per_epoch=800 // batch_size,
-            validation_data=valid_ds,
+            validation_data=valid_ds[downgrade_for_validation],
             validation_steps=100 // batch_size,
             callbacks=[tensorboard_callback,
                         model_checkpoint_callback])
     
 
-    print("Evaluating model...")
-    model.evaluate(valid_ds)
+    for distortion in valid_ds:
+        print(f"Evaluating model on {distortion} data with scale {scale_for_training} ...")
+        model.evaluate(valid_ds[distortion])
 
     print("Saving model...")
     model.save(f'weights/{model_name}-{depth}-{downgrade}-x{scale}/weights.h5', save_format='h5')
@@ -81,6 +91,8 @@ if __name__ == '__main__':
                         help= 'Downgrade type for validation')
     parser.add_argument('--scale_val', type=int, default = "4",
                         help= 'Scale type for validation')
+    parser.add_argument('--eval_all_distortions', action='store_true',
+                        help= 'Evaluate all distortions for validation')
     args = parser.parse_args()
 
     if len(tf.config.list_physical_devices('GPU')) == 0:
@@ -94,4 +106,5 @@ if __name__ == '__main__':
          batch_size=args.batch_size,
          epochs=args.epochs,
          depth=args.depth,
+         eval_all_distortions=args.eval_all_distortions
         )
