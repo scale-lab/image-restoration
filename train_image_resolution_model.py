@@ -12,16 +12,11 @@ def PSNR(super_resolution, high_resolution):
     psnr_value = tf.image.psnr(high_resolution, super_resolution, max_val=255)[0]
     return psnr_value
 
-def main(model_name, downgrade, scale, batch_size=16, epochs=100, depth=16, downgrade_for_validation = "same", scale_for_validation = "same"):
+def main(model_name, downgrade, scale, downgrade_for_validation, scale_for_validation, batch_size=16, epochs=100, depth=16):
     #treat downgrade=  downgrade_for_training
     downgrade_for_training = downgrade
     scale_for_training = scale
 
-    # check if we want the validation to be on a different dataset
-    downgrade_for_validation = downgrade_for_training if downgrade_for_validation == "same" else downgrade_for_validation
-    scale_for_validation = scale_for_training if scale_for_validation == "same" else scale_for_training
-
-    
     div2k_train = DIV2K(scale=scale_for_training, subset='train', downgrade=downgrade_for_training)
     div2k_valid = DIV2K(scale=scale_for_validation, subset='valid', downgrade=downgrade_for_validation)
 
@@ -33,7 +28,7 @@ def main(model_name, downgrade, scale, batch_size=16, epochs=100, depth=16, down
     elif model_name == 'wdsr':
         model = wdsr_b(scale=scale, num_res_blocks=depth)
     else:
-        NotImplementedError(f"Model {model_name} not implemented")
+        NotImplementedError(f"Model ({model_name}) not implemented. Only (edsr) and (wdsr) models are implemented.")
 
     loss_object = tf.keras.losses.MeanAbsoluteError()
 
@@ -82,10 +77,10 @@ if __name__ == '__main__':
                         help='Number of epochs to train for')
     parser.add_argument('--model', type=str, default='edsr',
                         help='Model name, can be edsr or wdsr')
-    parser.add_argument('--downgrade_val', type=str, default = "same",
-                        help= 'downgrade type for validation')
-    parser.add_argument('--scale_val', type=str, default = "same",
-                        help= 'scale type for validation')
+    parser.add_argument('--downgrade_val', type=str, default = "bicubic",
+                        help= 'Downgrade type for validation')
+    parser.add_argument('--scale_val', type=int, default = "4",
+                        help= 'Scale type for validation')
     args = parser.parse_args()
 
     if len(tf.config.list_physical_devices('GPU')) == 0:
@@ -94,9 +89,9 @@ if __name__ == '__main__':
     main(model_name=args.model,
          downgrade=args.downgrade, 
          scale=args.scale,
+         downgrade_for_validation=args.downgrade_val,
+         scale_for_validation=args.scale_val,
          batch_size=args.batch_size,
          epochs=args.epochs,
          depth=args.depth,
-         downgrade_for_validation=args.downgrade_val,
-         scale_for_validation=args.scale_val
         )
