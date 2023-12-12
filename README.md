@@ -2,7 +2,7 @@
 >*NOTE* This repo is based on this *Single Image Super Resolution Repo* [code](https://github.com/krasserm/super-resolution)
 
 ## Introduction
-This repo trains models to do image restoration on DIV2K dataset. It supports all modes of distortion in DIV2K dataset including `bicubic`, `unknown`, `mild`, and `difficult`. It also restores different downscaling factors `2`, `3`, `4`, and `8`.
+This repo trains models to do image restoration on DIV2K dataset. It supports all modes of distortion in DIV2K dataset including `bicubic`, `unknown`, `mild`, and `difficult`. It also restores different downscaling factors `2`, `3`, `4`, and `8`. The parameters of the training can be specified so that the model trains on a dataset, and is evaluated on a different one.
 
 
 ## Environment setup
@@ -76,12 +76,16 @@ python train_image_resolution_model.py --scale 2
                                        --model edsr
                                        --batch-size 16
                                        --depth 16
+                                       --scale_val same
+                                       --downgrade_val same
 ```
 - `model`: Model architecture, can be `edsr` or `wdsr`
-- `downgrade`: Distortion type, can be `bicubic`, `unknown`, `mild`, or `difficult`
-- `scale`: Downsampling factor, can be `2`, `3`, `4`, or `8`
+- `downgrade`: Distortion type for training, can be `bicubic`, `unknown`, `mild`, or `difficult`
+- `scale`: Downsampling factor for training, can be `2`, `3`, `4`, or `8`
 - `depth`: Depth of the model, default `16`
 - `batch-size`: Training batch size, default `16`
+- `downgrade_val`: Distortion type for validation, can be `bicubic`, `unknown`, `mild`, or `difficult`
+- `scale_val`: Downsampling factor for validation, can be `2`, `3`, `4`,`8`
 
 The result model is stored under `weight/` directory.
 
