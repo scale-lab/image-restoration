@@ -9,7 +9,7 @@ This repo trains models to do image restoration on DIV2K dataset. It supports al
 
 create a virtual environment
 ```
-python -m venv .venv
+python3 -m venv .venv
 ```
 Activate the virtual environment
 ```
