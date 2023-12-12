@@ -76,8 +76,8 @@ python train_image_resolution_model.py --scale 2
                                        --model edsr
                                        --batch-size 16
                                        --depth 16
-                                       --scale_val same
-                                       --downgrade_val same
+                                       --scale_val 4
+                                       --downgrade_val mild
 ```
 - `model`: Model architecture, can be `edsr` or `wdsr`
 - `downgrade`: Distortion type for training, can be `bicubic`, `unknown`, `mild`, or `difficult`
