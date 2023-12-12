@@ -97,5 +97,5 @@ The result model is stored under `weight/` directory.
 |  EDSR |   Bicubic  |          8         |        |    FP32   |
 |  EDSR |    Mild    |          4         |  18.77 |    FP32   |
 |  EDSR |  Difficult |          4         |  19.18 |    FP32   |
-|  EDSR |   Unknown  |          2         |  22.85 |    FP32   |
+|  EDSR |   Unknown  |          4         |  22.85 |    FP32   |
 |  EDSR |    All     |         All        |        |    FP32   |
