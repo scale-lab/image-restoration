@@ -1,11 +1,11 @@
 from data import DIV2K
 from model.edsr import edsr
+from model.qedsr import qedsr
 from model.wdsr import wdsr_b
 import argparse
 import tensorflow.compat.v1 as tf
 import datetime
 
-# https://keras.io/examples/vision/edsr/
 def PSNR(super_resolution, high_resolution):
     """Compute the peak signal-to-noise ratio, measures quality of image."""
     # Max value of pixel is 255
@@ -13,14 +13,15 @@ def PSNR(super_resolution, high_resolution):
     return psnr_value
 
 def main(model_name, downgrade, scale, downgrade_for_validation,
-         scale_for_validation, batch_size=16, epochs=100, depth=16,
-         eval_all_distortions=False):
+         scale_for_validation, precision, pretrained=None, batch_size=16, epochs=100, depth=16,
+         eval_all_distortions=False, train_all_distortions=False):
     #treat downgrade=  downgrade_for_training
     downgrade_for_training = downgrade
     scale_for_training = scale
 
     div2k_train = DIV2K(scale=scale_for_training, subset='train', downgrade=downgrade_for_training)
-    train_ds = div2k_train.dataset(batch_size=batch_size, random_transform=True)
+    train_ds = div2k_train.dataset(batch_size=batch_size, random_transform=True, 
+                                    all_distortions=train_all_distortions)
 
     if eval_all_distortions:
         div2k_valid = {distortion: DIV2K(scale=scale_for_validation, subset='valid', downgrade=distortion) 
@@ -33,10 +34,14 @@ def main(model_name, downgrade, scale, downgrade_for_validation,
         
     if model_name == 'edsr':
         model = edsr(scale=scale, num_res_blocks=depth)
+    elif model_name == 'qedsr':
+        model = qedsr(scale=scale, num_res_blocks=depth, precision=precision)
     elif model_name == 'wdsr':
         model = wdsr_b(scale=scale, num_res_blocks=depth)
     else:
         NotImplementedError(f"Model ({model_name}) not implemented. Only (edsr) and (wdsr) models are implemented.")
+
+    print(model.summary())
 
     loss_object = tf.keras.losses.MeanAbsoluteError()
 
@@ -46,8 +51,12 @@ def main(model_name, downgrade, scale, downgrade_for_validation,
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
 
     model.compile(loss=loss_object,
-              optimizer=optimizer, 
-              metrics=['MAE', PSNR])
+                  optimizer=optimizer, 
+                  metrics=['MAE', PSNR])
+
+    if pretrained:
+        print(f"Loading {pretrained}")
+        model.load_weights(pretrained)
 
     log_dir = "logs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
@@ -57,11 +66,18 @@ def main(model_name, downgrade, scale, downgrade_for_validation,
         mode='min')
 
     print(f"Training model on {downgrade} data with scale {scale_for_training} ...")
+
+    train_samples = 800
+    val_samples = 100
+
+    if train_all_distortions:
+        train_samples *= 4
+
     model.fit(train_ds,
             epochs=epochs,
-            steps_per_epoch=800 // batch_size,
+            steps_per_epoch=train_samples//batch_size,
             validation_data=valid_ds[downgrade_for_validation],
-            validation_steps=100 // batch_size,
+            validation_steps=val_samples//batch_size,
             callbacks=[tensorboard_callback,
                         model_checkpoint_callback])
     
@@ -71,7 +87,10 @@ def main(model_name, downgrade, scale, downgrade_for_validation,
         model.evaluate(valid_ds[distortion])
 
     print("Saving model...")
-    model.save(f'weights/{model_name}-{depth}-{downgrade}-x{scale}/weights.h5', save_format='h5')
+    if train_all_distortions:
+        model.save(f'weights/{model_name}-{depth}-all-x{scale}/weights.h5', save_format='h5')
+    else:
+        model.save(f'weights/{model_name}-{depth}-{downgrade}-x{scale}/weights.h5', save_format='h5')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train Image Restoration Model.')
@@ -87,12 +106,18 @@ if __name__ == '__main__':
                         help='Number of epochs to train for')
     parser.add_argument('--model', type=str, default='edsr',
                         help='Model name, can be edsr or wdsr')
+    parser.add_argument('--pretrained', type=str, default=None,
+                        help='Weights of the pretrained model')
     parser.add_argument('--downgrade_val', type=str, default = "bicubic",
                         help= 'Downgrade type for validation')
-    parser.add_argument('--scale_val', type=int, default = "4",
+    parser.add_argument('--scale_val', type=int, default = 4,
                         help= 'Scale type for validation')
+    parser.add_argument('--precision', type=int, default = 8,
+                        help= 'Precision of quantized convolution')
     parser.add_argument('--eval_all_distortions', action='store_true',
                         help= 'Evaluate all distortions for validation')
+    parser.add_argument('--train_all_distortions', action='store_true',
+                        help= 'Train on all distortions')
     args = parser.parse_args()
 
     if len(tf.config.list_physical_devices('GPU')) == 0:
@@ -103,8 +128,11 @@ if __name__ == '__main__':
          scale=args.scale,
          downgrade_for_validation=args.downgrade_val,
          scale_for_validation=args.scale_val,
+         precision=args.precision,
+         pretrained=args.pretrained,
          batch_size=args.batch_size,
          epochs=args.epochs,
          depth=args.depth,
-         eval_all_distortions=args.eval_all_distortions
+         eval_all_distortions=args.eval_all_distortions,
+         train_all_distortions=args.train_all_distortions
         )

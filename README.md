@@ -79,13 +79,17 @@ python train_image_resolution_model.py --scale 2
                                        --scale_val 4
                                        --downgrade_val mild
 ```
-- `model`: Model architecture, can be `edsr` or `wdsr`
+- `model`: Model architecture, can be `edsr` or `wdsr`. For quantized models, `qedsr` can be used.
 - `downgrade`: Distortion type for training, can be `bicubic`, `unknown`, `mild`, or `difficult`
 - `scale`: Downsampling factor for training, can be `2`, `3`, `4`, or `8`
 - `depth`: Depth of the model, default `16`
 - `batch-size`: Training batch size, default `16`
 - `downgrade_val`: Distortion type for validation, can be `bicubic`, `unknown`, `mild`, or `difficult`
 - `scale_val`: Downsampling factor for validation, can be `2`, `3`, `4`,`8`
+- `pretrained`: Path to the pretrained model.
+- `eval_all_distortions`: Evaluate the model on all distortion types. Note that, only scale `4` is supported.
+- `train_all_distortions`: Train the model on all distortion types. Note that, only scale `4` is supported.
+- `precision`: The precision of the model's weights. Can be only used when `model=edsr`.
 
 The result model is stored under `weight/` directory.
 

@@ -3,6 +3,8 @@ import tensorflow as tf
 
 from tensorflow.python.data.experimental import AUTOTUNE
 
+_downgrades_a = ['bicubic', 'unknown']
+_downgrades_b = ['mild', 'difficult']
 
 class DIV2K:
     def __init__(self,
@@ -28,9 +30,6 @@ class DIV2K:
         else:
             raise ValueError("subset must be 'train' or 'valid'")
 
-        _downgrades_a = ['bicubic', 'unknown']
-        _downgrades_b = ['mild', 'difficult']
-
         if scale == 8 and downgrade != 'bicubic':
             raise ValueError(f'scale 8 only allowed for bicubic downgrade')
 
@@ -55,8 +54,9 @@ class DIV2K:
     def __len__(self):
         return len(self.image_ids)
 
-    def dataset(self, batch_size=16, repeat_count=None, random_transform=True):
-        ds = tf.data.Dataset.zip((self.lr_dataset(), self.hr_dataset()))
+    def dataset(self, batch_size=16, repeat_count=None, random_transform=True, all_distortions=False):
+        ds = tf.data.Dataset.zip((self.lr_dataset(all_distortions=all_distortions), 
+                                  self.hr_dataset(all_distortions=all_distortions)))
         if random_transform:
             ds = ds.map(lambda lr, hr: random_crop(lr, hr, scale=self.scale), num_parallel_calls=AUTOTUNE)
             ds = ds.map(random_rotate, num_parallel_calls=AUTOTUNE)
@@ -66,25 +66,42 @@ class DIV2K:
         ds = ds.prefetch(buffer_size=AUTOTUNE)
         return ds
 
-    def hr_dataset(self):
+    def hr_dataset(self, all_distortions=False):
         if not os.path.exists(self._hr_images_dir()):
             download_archive(self._hr_images_archive(), self.images_dir, extract=True)
 
-        ds = self._images_dataset(self._hr_image_files()).cache(self._hr_cache_file())
+        if all_distortions:
+            assert self.scale == 4, "\"all_distortions\" mode is only available for scale 4"
+            ds = self._images_dataset(self._all_hr_image_files()).cache(self._hr_cache_file())
+        else:
+            ds = self._images_dataset(self._hr_image_files()).cache(self._hr_cache_file())
 
         if not os.path.exists(self._hr_cache_index()):
             self._populate_cache(ds, self._hr_cache_file())
 
         return ds
 
-    def lr_dataset(self):
-        if not os.path.exists(self._lr_images_dir()):
-            download_archive(self._lr_images_archive(), self.images_dir, extract=True)
+    def lr_dataset(self, all_distortions=False):
+        if all_distortions:
+            distortions = _downgrades_a + _downgrades_b
+        else:
+            distortions = [self.downgrade]
 
-        ds = self._images_dataset(self._lr_image_files()).cache(self._lr_cache_file())
+        # Download the data if needed
+        for distortion in distortions:
+            if not os.path.exists(self._lr_images_dir(distortion)):
+                download_archive(self._lr_images_archive(distortion), self.images_dir, extract=True)
 
-        if not os.path.exists(self._lr_cache_index()):
-            self._populate_cache(ds, self._lr_cache_file())
+        if all_distortions:
+            assert self.scale == 4, "\"all_distortions\" mode is only available for scale 4"
+            cache_file = self._all_lr_cache_file()
+            ds = self._images_dataset(self._all_lr_image_files()).cache(cache_file)
+        else:
+            cache_file = self._lr_cache_file()
+            ds = self._images_dataset(self._lr_image_files(self.downgrade)).cache(cache_file)
+
+        if not os.path.exists(self._lr_cache_index(all_distortions=all_distortions)):
+            self._populate_cache(ds, cache_file)
 
         return ds
 
@@ -94,43 +111,56 @@ class DIV2K:
     def _lr_cache_file(self):
         return os.path.join(self.caches_dir, f'DIV2K_{self.subset}_LR_{self.downgrade}_X{self.scale}.cache')
 
+    def _all_lr_cache_file(self):
+        return os.path.join(self.caches_dir, f'DIV2K_{self.subset}_LR_all_X{self.scale}.cache')
+
     def _hr_cache_index(self):
         return f'{self._hr_cache_file()}.index'
 
-    def _lr_cache_index(self):
-        return f'{self._lr_cache_file()}.index'
+    def _lr_cache_index(self, all_distortions=False):
+        if all_distortions:
+            return f'{self._all_lr_cache_file()}.index'
+        else:
+            return f'{self._lr_cache_file()}.index'
 
     def _hr_image_files(self):
         images_dir = self._hr_images_dir()
         return [os.path.join(images_dir, f'{image_id:04}.png') for image_id in self.image_ids]
 
-    def _lr_image_files(self):
-        images_dir = self._lr_images_dir()
-        return [os.path.join(images_dir, self._lr_image_file(image_id)) for image_id in self.image_ids]
+    def _lr_image_files(self, downgrade):
+        images_dir = self._lr_images_dir(downgrade)
+        return [os.path.join(images_dir, self._lr_image_file(image_id, downgrade)) for image_id in self.image_ids]
 
-    def _lr_image_file(self, image_id):
-        if not self._ntire_2018 or self.scale == 8:
+    def _all_lr_image_files(self):
+        return [file for downgrade in _downgrades_a + _downgrades_b for file in self._lr_image_files(downgrade)]
+
+    def _all_hr_image_files(self):
+        # simply repeat the hr file names 4 times
+        return [file for _ in range(4) for file in self._hr_image_files()]
+    
+    def _lr_image_file(self, image_id, downgrade):
+        if downgrade in _downgrades_a:
             return f'{image_id:04}x{self.scale}.png'
         else:
-            return f'{image_id:04}x{self.scale}{self.downgrade[0]}.png'
+            return f'{image_id:04}x{self.scale}{downgrade[0]}.png'
 
     def _hr_images_dir(self):
         return os.path.join(self.images_dir, f'DIV2K_{self.subset}_HR')
 
-    def _lr_images_dir(self):
-        if self._ntire_2018:
-            return os.path.join(self.images_dir, f'DIV2K_{self.subset}_LR_{self.downgrade}')
+    def _lr_images_dir(self, downgrade):
+        if downgrade in _downgrades_b:
+            return os.path.join(self.images_dir, f'DIV2K_{self.subset}_LR_{downgrade}')
         else:
-            return os.path.join(self.images_dir, f'DIV2K_{self.subset}_LR_{self.downgrade}', f'X{self.scale}')
+            return os.path.join(self.images_dir, f'DIV2K_{self.subset}_LR_{downgrade}', f'X{self.scale}')
 
     def _hr_images_archive(self):
         return f'DIV2K_{self.subset}_HR.zip'
 
-    def _lr_images_archive(self):
-        if self._ntire_2018:
-            return f'DIV2K_{self.subset}_LR_{self.downgrade}.zip'
+    def _lr_images_archive(self, downgrade):
+        if downgrade in _downgrades_b:
+            return f'DIV2K_{self.subset}_LR_{downgrade}.zip'
         else:
-            return f'DIV2K_{self.subset}_LR_{self.downgrade}_X{self.scale}.zip'
+            return f'DIV2K_{self.subset}_LR_{downgrade}_X{self.scale}.zip'
 
     @staticmethod
     def _images_dataset(image_files):
