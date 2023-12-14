@@ -94,12 +94,11 @@ python train_image_resolution_model.py --scale 2
 The result model is stored under `weight/` directory.
 
 ## Baselines
+### Same training and eval distortion
 | Model | Distortion | Downscaling Factor |  PSNR  | Precision |
 |:-----:|:----------:|:------------------:|:------:|:---------:|
 |  EDSR |   Bicubic  |          2         |  31.53 |    FP32   |
 |  EDSR |   Bicubic  |          4         |  26.98 |    FP32   |
-|  EDSR |   Bicubic  |          8         |        |    FP32   |
 |  EDSR |    Mild    |          4         |  18.77 |    FP32   |
 |  EDSR |  Difficult |          4         |  19.18 |    FP32   |
 |  EDSR |   Unknown  |          4         |  22.85 |    FP32   |
-|  EDSR |    All     |         All        |        |    FP32   |
